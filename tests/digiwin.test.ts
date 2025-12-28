@@ -1,5 +1,5 @@
 
-import { Cl, ClarityType } from "@stacks/transactions";
+import { Cl, ClarityType, cvToString, cvToValue } from "@stacks/transactions";
 import { describe, expect, it } from "vitest";
 
 const accounts = simnet.getAccounts();
@@ -22,7 +22,7 @@ describe("DigiWin Game Functions", () => {
     expect(response.result).toBeOk(Cl.uint(0));
   });
 
-  it("fails to create game with invalid range", () => {
+  it("fails to create game with invalid range (min > max)", () => {
     const min = 100;
     const max = 10;
     const fee = 100000;
@@ -35,6 +35,40 @@ describe("DigiWin Game Functions", () => {
     );
 
     expect(response.result).toBeErr(Cl.uint(105)); // ERR_INVALID_PARAMS
+  });
+
+  // NEW TEST 1
+  it("fails to create game with min equal to max", () => {
+    // min == max should trigger ERR_INVALID_PARAMS (u105)
+    const createResponse = simnet.callPublicFn(
+        "digiwin", 
+        "create-game", 
+        [Cl.uint(100), Cl.uint(100), Cl.uint(100000)], 
+        deployer
+    );
+    expect(createResponse.result).toBeErr(Cl.uint(105)); 
+  });
+
+  // NEW TEST 2
+  it("fails to guess number out of range", () => {
+    // Create a specific game for this test to be isolated
+    const createResponse = simnet.callPublicFn(
+        "digiwin", 
+        "create-game", 
+        [Cl.uint(10), Cl.uint(20), Cl.uint(50)], 
+        deployer
+    );
+    // Get the ID (unwrap OK result)
+    const gameId = (createResponse.result as any).value;
+
+    // Guess 21 (max is 20)
+    const response = simnet.callPublicFn(
+        "digiwin", 
+        "guess", 
+        [gameId, Cl.uint(21)], 
+        wallet1
+    );
+    expect(response.result).toBeErr(Cl.uint(103)); // ERR_INVALID_GUESS
   });
 
   it("allows guessing and collects fees", () => {
@@ -112,21 +146,4 @@ describe("DigiWin Game Functions", () => {
       expect(response.result).toBeErr(Cl.uint(101)); // ERR_GAME_NOT_FOUND
   });
 
-  it("prevents guessing out of range", () => {
-      const createResponse = simnet.callPublicFn(
-          "digiwin",
-          "create-game",
-          [Cl.uint(1), Cl.uint(10), Cl.uint(100)],
-          deployer
-      );
-      const gameId = (createResponse.result as any).value;
-
-      const response = simnet.callPublicFn(
-          "digiwin",
-          "guess",
-          [gameId, Cl.uint(20)],
-          wallet1
-      );
-      expect(response.result).toBeErr(Cl.uint(103)); // ERR_INVALID_GUESS
-  });
 });
